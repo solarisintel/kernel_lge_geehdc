@@ -134,8 +134,6 @@ static int tabla_codec_enable_slimrx(struct snd_soc_dapm_widget *w,
 static int tabla_codec_enable_slimtx(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event);
 
-struct snd_soc_codec *wcd9310_codec = NULL;
-EXPORT_SYMBOL(wcd9310_codec);
 
 enum tabla_bandgap_type {
 	TABLA_BANDGAP_OFF = 0,
@@ -360,8 +358,6 @@ struct tabla_priv {
 
 	bool gpio_irq_resend;
 	struct wake_lock irq_resend_wlock;
-
-	u32 h2w_state;
 
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *debugfs_poke;
@@ -1041,25 +1037,25 @@ static const struct soc_enum cf_dec10_enum =
 	SOC_ENUM_SINGLE(TABLA_A_CDC_TX10_MUX_CTL, 4, 3, cf_text);
 
 static const struct soc_enum cf_rxmix1_enum =
-	SOC_ENUM_SINGLE(TABLA_A_CDC_RX1_B4_CTL, 0, 3, cf_text);
+	SOC_ENUM_SINGLE(TABLA_A_CDC_RX1_B4_CTL, 1, 3, cf_text);
 
 static const struct soc_enum cf_rxmix2_enum =
-	SOC_ENUM_SINGLE(TABLA_A_CDC_RX2_B4_CTL, 0, 3, cf_text);
+	SOC_ENUM_SINGLE(TABLA_A_CDC_RX2_B4_CTL, 1, 3, cf_text);
 
 static const struct soc_enum cf_rxmix3_enum =
-	SOC_ENUM_SINGLE(TABLA_A_CDC_RX3_B4_CTL, 0, 3, cf_text);
+	SOC_ENUM_SINGLE(TABLA_A_CDC_RX3_B4_CTL, 1, 3, cf_text);
 
 static const struct soc_enum cf_rxmix4_enum =
-	SOC_ENUM_SINGLE(TABLA_A_CDC_RX4_B4_CTL, 0, 3, cf_text);
+	SOC_ENUM_SINGLE(TABLA_A_CDC_RX4_B4_CTL, 1, 3, cf_text);
 
 static const struct soc_enum cf_rxmix5_enum =
-	SOC_ENUM_SINGLE(TABLA_A_CDC_RX5_B4_CTL, 0, 3, cf_text)
+	SOC_ENUM_SINGLE(TABLA_A_CDC_RX5_B4_CTL, 1, 3, cf_text)
 ;
 static const struct soc_enum cf_rxmix6_enum =
-	SOC_ENUM_SINGLE(TABLA_A_CDC_RX6_B4_CTL, 0, 3, cf_text);
+	SOC_ENUM_SINGLE(TABLA_A_CDC_RX6_B4_CTL, 1, 3, cf_text);
 
 static const struct soc_enum cf_rxmix7_enum =
-	SOC_ENUM_SINGLE(TABLA_A_CDC_RX7_B4_CTL, 0, 3, cf_text);
+	SOC_ENUM_SINGLE(TABLA_A_CDC_RX7_B4_CTL, 1, 3, cf_text);
 
 static const struct snd_kcontrol_new tabla_snd_controls[] = {
 
@@ -1942,13 +1938,11 @@ static void tabla_codec_enable_bandgap(struct snd_soc_codec *codec,
 			0x00);
 	} else if ((tabla->bandgap_type == TABLA_BANDGAP_MBHC_MODE) &&
 		(choice == TABLA_BANDGAP_AUDIO_MODE)) {
-		if (tabla->h2w_state != H2W_HEADSET)
-			snd_soc_write(codec, TABLA_A_BIAS_CENTRAL_BG_CTL, 0x50);
+		snd_soc_write(codec, TABLA_A_BIAS_CENTRAL_BG_CTL, 0x50);
 		usleep_range(100, 100);
 		tabla_codec_enable_audio_mode_bandgap(codec);
 	} else if (choice == TABLA_BANDGAP_OFF) {
-		if (tabla->h2w_state != H2W_HEADSET)
-			snd_soc_write(codec, TABLA_A_BIAS_CENTRAL_BG_CTL, 0x50);
+		snd_soc_write(codec, TABLA_A_BIAS_CENTRAL_BG_CTL, 0x50);
 	} else {
 		pr_err("%s: Error, Invalid bandgap settings\n", __func__);
 	}
@@ -2210,7 +2204,6 @@ static int tabla_codec_enable_dmic(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_codec *codec = w->codec;
 	struct tabla_priv *tabla = snd_soc_codec_get_drvdata(codec);
-	struct wcd9xxx_pdata *pdata = tabla->pdata;
 	u8  dmic_clk_en;
 	s32 *dmic_clk_cnt;
 	unsigned int dmic;
@@ -2259,16 +2252,6 @@ static int tabla_codec_enable_dmic(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
-
-		if (!pdata->is_micbias1_capless) {
-			/* set micbias1 cap mode = No external bypass cap */
-			snd_soc_update_bits(codec,
-				TABLA_A_MICB_1_CTL, 0x10, 0x10);
-		} else {
-			/* set micbias1 cap mode = External bypass cap */
-			snd_soc_update_bits(codec,
-				TABLA_A_MICB_1_CTL, 0x10, 0x0);
-		}
 
 		(*dmic_clk_cnt)++;
 		if (*dmic_clk_cnt == 1)
@@ -2887,26 +2870,10 @@ static int tabla_codec_reset_interpolator(struct snd_soc_dapm_widget *w,
 static int tabla_codec_enable_ldo_h(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event)
 {
-	struct snd_soc_codec *codec = w->codec;
-	struct tabla_priv *tabla = NULL;
-
-	if (codec != NULL)
-		tabla = snd_soc_codec_get_drvdata(codec);
-
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
-		usleep_range(1000, 1000);
-		break;
 	case SND_SOC_DAPM_POST_PMD:
-		/*
-		 * Don't disable LDO_H while headset is inserted.
-		 * Headset need LDO_H always on.
-		 */
-		if (tabla->h2w_state == H2W_HEADSET) {
-			snd_soc_update_bits(codec, TABLA_A_LDO_H_MODE_1,
-					0x80, 0x80);
-		} else
-			usleep_range(1000, 1000);
+		usleep_range(1000, 1000);
 		break;
 	}
 	return 0;
@@ -3808,6 +3775,7 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"MIC BIAS2 Internal1", NULL, "LDO_H"},
 	{"MIC BIAS2 Internal2", NULL, "LDO_H"},
 	{"MIC BIAS2 Internal3", NULL, "LDO_H"},
+	{"MIC BIAS2 External", NULL, "LDO_H"},
 	{"MIC BIAS3 Internal1", NULL, "LDO_H"},
 	{"MIC BIAS3 Internal2", NULL, "LDO_H"},
 	{"MIC BIAS3 External", NULL, "LDO_H"},
@@ -3868,6 +3836,7 @@ static int tabla_readable(struct snd_soc_codec *ssc, unsigned int reg)
 
 	return tabla_reg_readable[reg];
 }
+
 static bool tabla_is_digital_gain_register(unsigned int reg)
 {
 	bool rtn = false;
@@ -3934,24 +3903,18 @@ static int tabla_volatile(struct snd_soc_codec *ssc, unsigned int reg)
 
 	return 0;
 }
-
 #define TABLA_FORMATS (SNDRV_PCM_FMTBIT_S16_LE)
-static int tabla_write(struct snd_soc_codec *codec, unsigned int reg,
-	unsigned int value)
-{
-	int ret;
-	BUG_ON(reg > TABLA_MAX_REGISTER);
 
-	if (!tabla_volatile(codec, reg)) {
-		ret = snd_soc_cache_write(codec, reg, value);
-		if (ret != 0)
-			dev_err(codec->dev, "Cache write to %x failed: %d\n",
-				reg, ret);
-	}
+#ifdef CONFIG_SOUND_CONTROL_HAX_3_GPL
+extern int snd_hax_reg_access(unsigned int);
+extern unsigned int snd_hax_cache_read(unsigned int);
+extern void snd_hax_cache_write(unsigned int, unsigned int);
+#endif
 
-	return wcd9xxx_reg_write(codec->control_data, reg, value);
-}
-static unsigned int tabla_read(struct snd_soc_codec *codec,
+#ifndef CONFIG_SOUND_CONTROL_HAX_3_GPL
+static
+#endif
+unsigned int tabla_read(struct snd_soc_codec *codec,
 				unsigned int reg)
 {
 	unsigned int val;
@@ -3972,6 +3935,46 @@ static unsigned int tabla_read(struct snd_soc_codec *codec,
 	val = wcd9xxx_reg_read(codec->control_data, reg);
 	return val;
 }
+#ifdef CONFIG_SOUND_CONTROL_HAX_3_GPL
+EXPORT_SYMBOL(tabla_read);
+#endif
+
+#ifndef CONFIG_SOUND_CONTROL_HAX_3_GPL
+static
+#endif
+int tabla_write(struct snd_soc_codec *codec, unsigned int reg,
+	unsigned int value)
+{
+	int ret;
+#ifdef CONFIG_SOUND_CONTROL_HAX_3_GPL
+	int val;
+#endif
+
+	BUG_ON(reg > TABLA_MAX_REGISTER);
+
+	if (!tabla_volatile(codec, reg)) {
+		ret = snd_soc_cache_write(codec, reg, value);
+		if (ret != 0)
+			dev_err(codec->dev, "Cache write to %x failed: %d\n",
+				reg, ret);
+	}
+#ifdef CONFIG_SOUND_CONTROL_HAX_3_GPL
+	if (!snd_hax_reg_access(reg)) {
+		if (!((val = snd_hax_cache_read(reg)) != -1)) {
+			val = wcd9xxx_reg_read_safe(codec->control_data, reg);
+		}
+	} else {
+		snd_hax_cache_write(reg, value);
+		val = value;
+	}
+	return wcd9xxx_reg_write(codec->control_data, reg, val);
+#else
+	return wcd9xxx_reg_write(codec->control_data, reg, value);
+#endif
+}
+#ifdef CONFIG_SOUND_CONTROL_HAX_3_GPL
+EXPORT_SYMBOL(tabla_write);
+#endif
 
 static s16 tabla_get_current_v_ins(struct tabla_priv *tabla, bool hu)
 {
@@ -4094,20 +4097,6 @@ static void tabla_shutdown(struct snd_pcm_substream *substream,
 		pm_runtime_mark_last_busy(tabla_core->dev->parent);
 		pm_runtime_put(tabla_core->dev->parent);
 	}
-}
-
-void tabla_set_h2w_status(struct snd_soc_codec *codec, u32 status)
-{
-	struct tabla_priv *tabla = snd_soc_codec_get_drvdata(codec);
-
-	tabla->h2w_state = status;
-}
-
-int tabla_check_bandgap_status(struct snd_soc_codec *codec)
-{
-	struct tabla_priv *tabla = snd_soc_codec_get_drvdata(codec);
-
-	return tabla->bandgap_type;
 }
 
 int tabla_mclk_enable(struct snd_soc_codec *codec, int mclk_enable, bool dapm)
@@ -5180,8 +5169,7 @@ static const struct snd_soc_dapm_widget tabla_dapm_widgets[] = {
 		0),
 
 	SND_SOC_DAPM_SUPPLY("LDO_H", TABLA_A_LDO_H_MODE_1, 7, 0,
-		tabla_codec_enable_ldo_h, SND_SOC_DAPM_POST_PMU |
-		SND_SOC_DAPM_POST_PMD),
+		tabla_codec_enable_ldo_h, SND_SOC_DAPM_POST_PMU),
 
 	SND_SOC_DAPM_SUPPLY("COMP1_CLK", SND_SOC_NOPM, 0, 0,
 		tabla_config_compander, SND_SOC_DAPM_PRE_PMU |
@@ -8408,6 +8396,15 @@ static const struct file_operations codec_mbhc_debug_ops = {
 };
 #endif
 
+#ifdef CONFIG_SOUND_CONTROL_HAX_3_GPL
+struct snd_kcontrol_new *gpl_faux_snd_controls_ptr =
+		(struct snd_kcontrol_new *)tabla_snd_controls;
+struct snd_soc_codec *fauxsound_codec_ptr;
+EXPORT_SYMBOL(fauxsound_codec_ptr);
+int wcd9xxx_hw_revision;
+EXPORT_SYMBOL(wcd9xxx_hw_revision);
+#endif
+
 static int tabla_codec_probe(struct snd_soc_codec *codec)
 {
 	struct wcd9xxx *control;
@@ -8417,10 +8414,22 @@ static int tabla_codec_probe(struct snd_soc_codec *codec)
 	int i;
 	int ch_cnt;
 
+#ifdef CONFIG_SOUND_CONTROL_HAX_3_GPL
+	pr_info("tabla codec probe...\n");
+	fauxsound_codec_ptr = codec;
+#endif
+
 	codec->control_data = dev_get_drvdata(codec->dev->parent);
 	control = codec->control_data;
 
+#ifdef CONFIG_SOUND_CONTROL_HAX_3_GPL
+	if (TABLA_IS_2_0(control->version))
+		wcd9xxx_hw_revision = 1;
+	else
+		wcd9xxx_hw_revision = 2;
+#endif
 	tabla = kzalloc(sizeof(struct tabla_priv), GFP_KERNEL);
+
 	if (!tabla) {
 		dev_err(codec->dev, "Failed to allocate private data\n");
 		return -ENOMEM;
@@ -8453,10 +8462,8 @@ static int tabla_codec_probe(struct snd_soc_codec *codec)
 	tabla->mbhc_fake_ins_start = 0;
 	tabla->no_mic_headset_override = false;
 	tabla->hs_polling_irq_prepared = false;
-	tabla->h2w_state = H2W_NONE;
 	mutex_init(&tabla->codec_resource_lock);
 	tabla->codec = codec;
-	wcd9310_codec = codec;
 	tabla->mbhc_state = MBHC_STATE_NONE;
 	tabla->mbhc_last_resume = 0;
 	for (i = 0; i < COMPANDER_MAX; i++) {
