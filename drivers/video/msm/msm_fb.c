@@ -1276,6 +1276,9 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 #if defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WXGA_PT)
 	var->height = 102,      /* height of picture in mm */
 	var->width = 61,        /* width of picture in mm */
+#elif defined(CONFIG_FB_MSM_MIPI_HITACHI_VIDEO_HD_PT)
+    var->height = 103,      /* height of picture in mm */
+    var->width = 58,        /* width of picture in mm */
 #else
 	var->height = -1,	/* height of picture in mm */
 	var->width = -1,	/* width of picture in mm */

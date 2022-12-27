@@ -1,0 +1,13 @@
+--- drivers/video/msm/Kconfig	2022-12-09 13:34:15.219037900 +0900
++++ drivers/video/msm/Kconfig	2022-12-08 16:42:14.268562300 +0900
+@@ -679,6 +689,10 @@
+ 	bool "MIPI LG Display WXGA PT Panel"
+ 	select FB_MSM_MIPI_LGIT_VIDEO_WXGA_PT
+ 
++config FB_MSM_MIPI_HITACHI_VIDEO_HD_PT_PANEL
++       bool "MIPI HITACHI Display HD PT Panel"
++       select FB_MSM_MIPI_HITACHI_VIDEO_HD_PT
++
+ config FB_MSM_MIPI_TOSHIBA_VIDEO_WVGA_PT_PANEL
+ 	bool "MIPI Toshiba WVGA PT Panel"
+ 	select FB_MSM_MIPI_TOSHIBA_VIDEO_WVGA_PT
