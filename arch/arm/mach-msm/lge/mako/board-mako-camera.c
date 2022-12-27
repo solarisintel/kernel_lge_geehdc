@@ -169,6 +169,9 @@ static struct msm_gpiomux_config apq8064_cam_common_configs[] = {
 };
 
 #if defined(CONFIG_IMX111) || defined(CONFIG_IMX091)
+static struct msm_gpiomux_config apq8064_cam_2d_configs[] = {
+};
+
 static struct msm_bus_vectors cam_init_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_VFE,
@@ -194,7 +197,7 @@ static struct msm_bus_vectors cam_preview_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_VFE,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 27648000,
+                .ab  = 94003200, 
 		.ib  = 110592000,
 	},
 	{
@@ -215,8 +218,8 @@ static struct msm_bus_vectors cam_video_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_VFE,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 274406400,
-		.ib  = 1812430080,
+                .ab  = 140451840,
+                .ib  = 561807360,
 	},
 	{
 		.src = MSM_BUS_MASTER_VPE,
@@ -236,8 +239,8 @@ static struct msm_bus_vectors cam_snapshot_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_VFE,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 274423680,
-		.ib  = 1097694720,
+                .ab  = 411635520,  
+                .ib  = 1646542080, 
 	},
 	{
 		.src = MSM_BUS_MASTER_VPE,
@@ -269,31 +272,34 @@ static struct msm_bus_vectors cam_zsl_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_JPEG_ENC,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 540000000,
+                .ab  = 810000000, 
 		.ib  = 2025000000,
 	},
 };
 
-static struct msm_bus_vectors cam_video_ls_vectors[] = {
-	{
-		.src = MSM_BUS_MASTER_VFE,
-		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 348192000,
-		.ib  = 617103360,
-	},
-	{
-		.src = MSM_BUS_MASTER_VPE,
-		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 206807040,
-		.ib  = 488816640,
-	},
-	{
-		.src = MSM_BUS_MASTER_JPEG_ENC,
-		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 540000000,
-		.ib  = 1350000000,
-	},
-};
+/*
+ * static struct msm_bus_vectors cam_video_ls_vectors[] = {
+ *	{
+ *		.src = MSM_BUS_MASTER_VFE,
+ *		.dst = MSM_BUS_SLAVE_EBI_CH0,
+ *		.ab  = 348192000,
+ *		.ib  = 617103360,
+ *	},
+ *	{
+ *		.src = MSM_BUS_MASTER_VPE,
+ *		.dst = MSM_BUS_SLAVE_EBI_CH0,
+ *		.ab  = 206807040,
+ *		.ib  = 488816640,
+ *	},
+ *	{
+ *		.src = MSM_BUS_MASTER_JPEG_ENC,
+ *		.dst = MSM_BUS_SLAVE_EBI_CH0,
+ *		.ab  = 540000000,
+ *		.ib  = 1350000000,
+ *	},
+ * };
+ *
+ */
 
 static struct msm_bus_paths cam_bus_client_config[] = {
 	{
@@ -316,10 +322,11 @@ static struct msm_bus_paths cam_bus_client_config[] = {
 		ARRAY_SIZE(cam_zsl_vectors),
 		cam_zsl_vectors,
 	},
-	{
-		ARRAY_SIZE(cam_video_ls_vectors),
-		cam_video_ls_vectors,
-	},
+
+// 	{
+//		ARRAY_SIZE(cam_video_ls_vectors),
+// 		cam_video_ls_vectors,
+// 	},
 };
 
 static struct msm_bus_scale_pdata cam_bus_client_pdata = {
@@ -378,6 +385,10 @@ static struct msm_gpio_set_tbl apq8064_back_cam_gpio_set_tbl[] = {
 
 static struct msm_camera_gpio_conf apq8064_back_cam_gpio_conf = {
 	.gpio_no_mux = 1,
+        .cam_gpiomux_conf_tbl = apq8064_cam_2d_configs,
+        .cam_gpiomux_conf_tbl_size = ARRAY_SIZE(apq8064_cam_2d_configs),
+        .cam_gpio_common_tbl = apq8064_common_cam_gpio,
+        .cam_gpio_common_tbl_size = ARRAY_SIZE(apq8064_common_cam_gpio),
 	.cam_gpio_req_tbl = apq8064_back_cam_gpio,
 	.cam_gpio_req_tbl_size = ARRAY_SIZE(apq8064_back_cam_gpio),
 	.cam_gpio_set_tbl = apq8064_back_cam_gpio_set_tbl,
@@ -403,6 +414,10 @@ static struct msm_gpio_set_tbl apq8064_front_cam_gpio_set_tbl[] = {
 
 static struct msm_camera_gpio_conf apq8064_front_cam_gpio_conf = {
 	.gpio_no_mux = 1,
+        .cam_gpiomux_conf_tbl = apq8064_cam_2d_configs,
+        .cam_gpiomux_conf_tbl_size = ARRAY_SIZE(apq8064_cam_2d_configs),
+        .cam_gpio_common_tbl = apq8064_common_cam_gpio,
+        .cam_gpio_common_tbl_size = ARRAY_SIZE(apq8064_common_cam_gpio),
 	.cam_gpio_req_tbl = apq8064_front_cam_gpio,
 	.cam_gpio_req_tbl_size = ARRAY_SIZE(apq8064_front_cam_gpio),
 	.cam_gpio_set_tbl = apq8064_front_cam_gpio_set_tbl,
@@ -498,7 +513,8 @@ static struct msm_camera_sensor_platform_info sensor_board_info_imx091 = {
 };
 
 static struct i2c_board_info imx091_eeprom_i2c_info = {
-	I2C_BOARD_INFO("imx091_eeprom", 0x21),
+	I2C_BOARD_INFO("imx091_eeprom", 0x53),
+//	I2C_BOARD_INFO("imx091_eeprom", 0x21),
 };
 
 static struct msm_eeprom_info imx091_eeprom_info = {

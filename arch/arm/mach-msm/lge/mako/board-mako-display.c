@@ -1,7 +1,7 @@
 /* Copyright (c) 2012, The Linux Foundation. All rights reserved.
  * Copyright (c) 2012, LGE Inc.
  *
- * This program is free software; you can redistribute it and/or modify
+ * This program is free softwarxge; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
  * only version 2 as published by the Free Software Foundation.
  *
@@ -10,6 +10,15 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
+ */
+
+/*
+ * L01E/LGL21 is 
+ * 
+ * CONFIG_FB_MSM_MIPI_HITACHI_VIDEO_HD_PT=y
+ * CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WXGA_PT is not set
+ * CONFIG_BACKLIGHT_LM3533=y
+ * CONFIG_BACKLIGHT_LM3530 is not set
  */
 
 #include <linux/init.h>
@@ -39,19 +48,31 @@
 #include "board-mako.h"
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
+
 /* prim = 1366 x 768 x 3(bpp) x 3(pages) */
 #if defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WXGA_PT)
 #define MSM_FB_PRIM_BUF_SIZE roundup(768 * 1280 * 4 * 3, 0x10000)
 #else
+#if defined(FB_MSM_MIPI_HITACHI_VIDEO_HD_PT)
+#define MSM_FB_PRIM_BUF_SIZE roundup(736 * 1280 * 4 * 3, 0x10000)
+#else
 #define MSM_FB_PRIM_BUF_SIZE roundup(1920 * 1088 * 4 * 3, 0x10000)
 #endif
+#endif
+
 #else
+
 /* prim = 1366 x 768 x 3(bpp) x 2(pages) */
 #if defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WXGA_PT)
 #define MSM_FB_PRIM_BUF_SIZE roundup(768 * 1280 * 4 * 2, 0x10000)
 #else
+#if defined(FB_MSM_MIPI_HITACHI_VIDEO_HD_PT)
+#define MSM_FB_PRIM_BUF_SIZE roundup(736 * 1280 * 4 * 2, 0x10000)
+#else
 #define MSM_FB_PRIM_BUF_SIZE roundup(1920 * 1088 * 4 * 2, 0x10000)
 #endif
+#endif
+
 #endif /*CONFIG_FB_MSM_TRIPLE_BUFFER */
 
 #ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
@@ -71,17 +92,25 @@
 #define MSM_FB_WFD_BUF_SIZE     0
 #endif
 
+
 #define MSM_FB_SIZE \
 	roundup(MSM_FB_PRIM_BUF_SIZE + \
 		MSM_FB_EXT_BUF_SIZE + MSM_FB_WFD_BUF_SIZE, 4096)
 
 #ifdef CONFIG_FB_MSM_OVERLAY0_WRITEBACK
-	#if defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WXGA_PT)
-	#define MSM_FB_OVERLAY0_WRITEBACK_SIZE roundup((768 * 1280 * 3 * 2), 4096)
-	#else
-	#define MSM_FB_OVERLAY0_WRITEBACK_SIZE (0)
-	#endif
+
+#if defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WXGA_PT)
+#define MSM_FB_OVERLAY0_WRITEBACK_SIZE roundup((768 * 1280 * 3 * 2), 4096)
 #else
+#if defined(FB_MSM_MIPI_HITACHI_VIDEO_HD_PT)
+#define MSM_FB_OVERLAY0_WRITEBACK_SIZE roundup((736 * 1280 * 3 * 2), 4096)
+#else
+#define MSM_FB_OVERLAY0_WRITEBACK_SIZE (0)
+#endif
+#endif
+
+#else
+
 #define MSM_FB_OVERLAY0_WRITEBACK_SIZE (0)
 #endif  /* CONFIG_FB_MSM_OVERLAY0_WRITEBACK */
 
@@ -247,7 +276,7 @@ static struct msm_bus_scale_pdata mdp_bus_scale_pdata = {
 static struct msm_panel_common_pdata mdp_pdata = {
 	.gpio = MDP_VSYNC_GPIO,
 	.mdp_max_clk = 266667000,
-	.mdp_max_bw = 3000000000u,
+	.mdp_max_bw = 2000000000u,
 	.mdp_bw_ab_factor = 115,
 	.mdp_bw_ib_factor = 125,
 	.mdp_bus_scale_table = &mdp_bus_scale_pdata,
@@ -390,6 +419,21 @@ static int mipi_dsi_panel_power(int on)
 	static int gpio42;
 	int rc;
 
+#if defined(CONFIG_FB_MSM_MIPI_HITACHI_VIDEO_HD_PT)
+    static int gpio20;      // LCD RST GPIO for rev.B
+    // LCD RST GPIO for rev.B
+    struct pm_gpio gpio20_param = {
+                        .direction = PM_GPIO_DIR_OUT,
+                        .output_buffer = PM_GPIO_OUT_BUF_CMOS,
+                        .output_value = 0,
+                        .pull = PM_GPIO_PULL_NO,
+                        .vin_sel = 2,
+                        .out_strength = PM_GPIO_STRENGTH_HIGH,
+                        .function = PM_GPIO_FUNC_PAIRED,
+                        .inv_int_pol = 0,
+                        .disable_pin = 0,
+    };
+#endif
 	struct pm_gpio gpio42_param = {
 		.direction = PM_GPIO_DIR_OUT,
 		.output_buffer = PM_GPIO_OUT_BUF_CMOS,
@@ -406,9 +450,24 @@ static int mipi_dsi_panel_power(int on)
 	pr_debug("%s: state : %d\n", __func__, on);
 
 	if (!dsi_power_on) {
-
+#if defined(CONFIG_FB_MSM_MIPI_HITACHI_VIDEO_HD_PT)
+               // LCD RST GPIO for rev.B
+                if (lge_get_board_revno() == HW_REV_B)
+		{
+                        gpio20 = PM8921_GPIO_PM_TO_SYS(20);
+                        rc = gpio_request(gpio20, "disp_rst_n");
+			if (rc) {
+                        	pr_err("request gpio 20 failed, rc=%d\n", rc);
+                        	return -ENODEV;
+			}
+		} 
+                else
+                {
 		gpio42 = PM8921_GPIO_PM_TO_SYS(42);
-
+                }
+#else
+		gpio42 = PM8921_GPIO_PM_TO_SYS(42);
+#endif
 		rc = gpio_request(gpio42, "disp_rst_n");
 		if (rc) {
 			pr_err("request gpio 42 failed, rc=%d\n", rc);
@@ -481,6 +540,24 @@ static int mipi_dsi_panel_power(int on)
 			return -EINVAL;
 		}
 
+#if defined(CONFIG_FB_MSM_MIPI_HITACHI_VIDEO_HD_PT)
+                rc = regulator_enable(reg_lvs6); // IOVCC
+                if (rc) {
+                        pr_err("enable lvs6 failed, rc=%d\n", rc);
+                        return -ENODEV;
+                }
+
+                udelay(100);
+
+                rc = regulator_enable(reg_l8);  // dsi_vci
+                        if (rc) {
+                                pr_err("enable l8 failed, rc=%d\n", rc);
+                                return -ENODEV;
+                        }
+
+                udelay(100);
+
+#endif
 #if defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WXGA_PT)
 		rc = regulator_enable(reg_l8);  // dsi_vci
 		if (rc) {
@@ -506,6 +583,32 @@ static int mipi_dsi_panel_power(int on)
 		}
 
 		printk(KERN_INFO " %s : reset start.", __func__);
+
+#if defined(CONFIG_FB_MSM_MIPI_HITACHI_VIDEO_HD_PT)
+                // LCD RESET HIGH for rev.B
+                if (lge_get_board_revno() == HW_REV_B)
+                {
+                        mdelay(2);
+                        gpio20_param.output_value = 1;
+                        rc = pm8xxx_gpio_config(gpio20,&gpio20_param);
+                        if (rc) {
+                                pr_err("gpio_config 20 failed (3), rc=%d\n", rc);
+                                return -EINVAL;
+                        }
+                } 
+		else
+		{
+			/* LCD RESET HIGH */
+                        mdelay(2);
+                        gpio42_param.output_value = 1;
+                        rc = pm8xxx_gpio_config(gpio42,&gpio42_param);
+                        if (rc) {
+                                pr_err("gpio_config 42 failed (3), rc=%d\n", rc);
+                                return -EINVAL;
+                        }
+                        mdelay(11);
+                }
+#else
 		/* LCD RESET HIGH */
 		mdelay(2);
 		gpio42_param.output_value = 1;
@@ -515,9 +618,22 @@ static int mipi_dsi_panel_power(int on)
 			return -EINVAL;
 		}
 		mdelay(5);
-
+#endif
 	} else {
-		/* LCD RESET LOW */
+#if defined(CONFIG_FB_MSM_MIPI_HITACHI_VIDEO_HD_PT)
+                if (lge_get_board_revno() == HW_REV_B)
+                {
+                        gpio20_param.output_value = 0;
+                        rc = pm8xxx_gpio_config(gpio20,&gpio20_param);
+                        if (rc) {
+                                pr_err("gpio_config 20 failed, rc=%d\n", rc);
+                                return -ENODEV;
+                        }
+                }
+                else
+                {
+                        // DGMS : MC-C05717-2
+                        // LCD RESET LOW
 		gpio42_param.output_value = 0;
 		rc = pm8xxx_gpio_config(gpio42,&gpio42_param);
 		if (rc) {
@@ -525,7 +641,30 @@ static int mipi_dsi_panel_power(int on)
 			return -ENODEV;
 		}
 		udelay(100);
+                }
+#else
+		/* LCD RESET LOW */
+		gpio42_param.output_value = 0;
+		rc = pm8xxx_gpio_config(gpio42, &gpio42_param);
+		if (rc) {
+			pr_err("gpio_config 42 failed, rc=%d\n", rc);
+			return -ENODEV;
+		}
+		udelay(100);
+#endif 
+#if defined(CONFIG_FB_MSM_MIPI_HITACHI_VIDEO_HD_PT)
+                rc = regulator_disable(reg_l8); //VCI
+                if (rc) {
+                        pr_err("disable reg_l8  failed, rc=%d\n", rc);
+                        return -ENODEV;
+                }
 
+                rc = regulator_disable(reg_lvs6);       // IOVCC
+                if (rc) {
+                        pr_err("disable lvs6 failed, rc=%d\n", rc);
+                        return -ENODEV;
+                }
+#endif
 #if defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WXGA_PT)
 		rc = regulator_disable(reg_lvs6); // IOVCC
 		if (rc) {
@@ -736,15 +875,222 @@ static int hdmi_cec_power(int on)
 	return 0;
 }
 
+#if defined (CONFIG_BACKLIGHT_LM3533)
+extern void lm3533_lcd_backlight_set_level( int level);
+#endif /* CONFIG_BACKLIGHT_LMXXXX */
+
+#if defined(CONFIG_FB_MSM_MIPI_HITACHI_VIDEO_HD_PT)
+
+static int mipi_hitachi_backlight_level(int level, int max, int min)
+{ 
+#if defined (CONFIG_BACKLIGHT_LM3533)
+	lm3533_lcd_backlight_set_level(level);
+#elif defined (CONFIG_BACKLIGHT_LM3530)
+	lm3530_lcd_backlight_set_level(level);
+#endif 
+	return 0;
+}
+
+/* HITACHI 4.67" HD panel */
+static char set_address_mode[2] = {0x36, 0x00};
+static char set_pixel_format[2] = {0x3A, 0x70};
+
+static char exit_sleep[2] = {0x11, 0x00};
+static char display_on[2] = {0x29, 0x00};
+static char enter_sleep[2] = {0x10, 0x00};
+static char display_off[2] = {0x28, 0x00};
+
+static char macp_off[2] = {0xB0, 0x04};
+static char macp_on[2] = {0xB0, 0x03};
+
+#if defined(CONFIG_LGE_BACKLIGHT_CABC)
+#define CABC_POWERON_OFFSET 4 /* offset from lcd display on cmds */
+
+#define CABC_OFF 0
+#define CABC_ON 1
+
+#define CABC_10 1
+#define CABC_20 2
+#define CABC_30 3
+#define CABC_40 4
+#define CABC_50 5
+
+#define CABC_DEFUALT CABC_10
+
+static char backlight_ctrl1[2][6] = {
+
+	/* off */
+	{
+		0xB8, 0x00, 0x00, 0x30,
+		0x18, 0x18
+	},
+	/* on */
+	{
+		0xB8, 0x01, 0x00, 0x30,
+		0x18, 0x18
+	},
+};
+
+static char backlight_ctrl2[6][8] = {
+	/* off */
+	{
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00
+	},
+	/* 10% */
+	{
+		0xB9, 0x18, 0x00, 0x18,
+		0x18, 0x9F, 0x1F, 0x0F
+	},
+
+	/* 20% */
+	{
+		0xB9, 0x18, 0x00, 0x18,
+		0x18, 0x9F, 0x1F, 0x0F
+	},
+
+	/* 30% */
+	{
+		0xB9, 0x18, 0x00, 0x18,
+		0x18, 0x9F, 0x1F, 0x0F
+	},
+
+	/* 40% */
+	{
+		0xB9, 0x18, 0x00, 0x18,
+		0x18, 0x9F, 0x1F, 0x0F
+	},
+	/* 50% */
+	{
+		0xB9, 0x18, 0x00, 0x18,
+		0x18, 0x9F, 0x1F, 0x0F
+	}
+};
+
+static char backlight_ctrl3[6][25] = {
+	/* off */
+	{
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		0x00
+	},
+	/* 10% */
+	{
+		0xBA, 0x00, 0x00, 0x0C,
+		0x12, 0x6C, 0x11, 0x6C,
+		0x12, 0x0C, 0x12, 0x00,
+		0xDA, 0x6D, 0x03, 0xFF,
+		0xFF, 0x10, 0x67, 0xA3,
+		0xDB, 0xFB, 0xFF, 0x9F,
+		0x00
+	},
+	/* 20% */
+	{
+		0xBA, 0x00, 0x00, 0x0C,
+		0x0B, 0x6C, 0x0B, 0xAC,
+		0x0B, 0x0C, 0x0B, 0x00,
+		0xDA, 0x6D, 0x03, 0xFF,
+		0xFF, 0x10, 0xB3, 0xC9,
+		0xDC, 0xEE, 0xFF, 0x9F,
+		0x00
+	},
+	/* 30% */
+	{
+		0xBA, 0x00, 0x00, 0x0C,
+		0x0D, 0x6C, 0x0D, 0xAC,
+		0x0D, 0x0C, 0x0D, 0x00,
+		0xDA, 0x6D, 0x03, 0xFF,
+		0xFF, 0x10, 0x8C, 0xAA,
+		0xC7, 0xE3, 0xFF, 0x9F,
+		0x00
+	},
+	/* 40% */
+	{
+		0xBA, 0x00, 0x00, 0x0C,
+		0x13, 0xAC, 0x13, 0x6C,
+		0x13, 0x0C, 0x13, 0x00,
+		0xDA, 0x6D, 0x03, 0xFF,
+		0xFF, 0x10, 0x67, 0x89,
+		0xAF, 0xD6, 0xFF, 0x9F,
+		0x00
+	},
+	/* 50% */
+	{
+		0xBA, 0x00, 0x00, 0x0C,
+		0x14, 0xAC, 0x14, 0x6C,
+		0x14, 0x0C, 0x14, 0x00,
+		0xDA, 0x6D, 0x03, 0xFF,
+		0xFF, 0x10, 0x37, 0x5A,
+		0x87, 0xBD, 0xFF, 0x9F,
+		0x00
+	}
+};
+#endif  // CONFIG_LGE_BACKLIGHT_CABC
+
+static struct dsi_cmd_desc hitachi_power_on_set[] = {
+	/* Display initial set */
+	{DTYPE_DCS_WRITE1, 1, 0, 0, 20, sizeof(set_address_mode),
+		set_address_mode},
+	{DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(set_pixel_format),
+		set_pixel_format},
+
+	/* Sleep mode exit */
+	{DTYPE_DCS_WRITE, 1, 0, 0, 70, sizeof(exit_sleep), exit_sleep},
+
+	/* Manufacturer command protect off */
+	{DTYPE_GEN_WRITE2, 1, 0, 0, 0, sizeof(macp_off), macp_off},
+#if defined(CONFIG_LGE_BACKLIGHT_CABC)
+	/* Content adaptive backlight control */
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(backlight_ctrl1[1]),
+		backlight_ctrl1[CABC_ON]},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(backlight_ctrl2[CABC_DEFUALT]),
+		backlight_ctrl2[CABC_DEFUALT]},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(backlight_ctrl3[CABC_DEFUALT]),
+		backlight_ctrl3[CABC_DEFUALT]},
+#endif
+	/* Manufacturer command protect on */
+	{DTYPE_GEN_WRITE2, 1, 0, 0, 0, sizeof(macp_on), macp_on},
+	/* Display on */
+	{DTYPE_DCS_WRITE, 1, 0, 0, 0, sizeof(display_on), display_on},
+};
+
+static struct dsi_cmd_desc hitachi_power_off_set[] = {
+	{DTYPE_DCS_WRITE, 1, 0, 0, 0, sizeof(display_off), display_off},
+	{DTYPE_DCS_WRITE, 1, 0, 0, 0, sizeof(enter_sleep), enter_sleep}
+};
+
+static struct msm_panel_common_pdata mipi_hitachi_pdata = {
+	.backlight_level = mipi_hitachi_backlight_level,
+	.power_on_set_1 = hitachi_power_on_set,
+	.power_off_set_1 = hitachi_power_off_set,
+	.power_on_set_size_1 = ARRAY_SIZE(hitachi_power_on_set),
+	.power_off_set_size_1 = ARRAY_SIZE(hitachi_power_off_set),
+};
+
+static struct platform_device mipi_dsi_hitachi_panel_device = {
+	.name = "mipi_hitachi",
+	.id = 0,
+	.dev = {
+		.platform_data = &mipi_hitachi_pdata,
+	}
+};
+#endif // CONFIG_FB_MSM_MIPI_HITACHI_VIDEO_HD_PT
+
 #if defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WXGA_PT)
 static int mipi_lgit_backlight_level(int level, int max, int min)
 {
-#ifdef CONFIG_BACKLIGHT_LM3530
+#ifdef CONFIG_BACKLIGHT_LM3533
+        lm3533_lcd_backlight_set_level(level);
+#elif  CONFIG_BACKLIGHT_LM3530
 	lm3530_lcd_backlight_set_level(level);
 #endif
-
 	return 0;
 }
+
 
 /* for making one source of DSV feature. */
 char lcd_mirror [2] = {0x36, 0x02};
@@ -756,21 +1102,22 @@ static char panel_setting_2 [3] = {0xB3, 0x0A, 0x9F};
 static char display_mode1 [6] = {0xB5, 0x50, 0x20, 0x40, 0x00, 0x20};
 static char display_mode2 [8] = {0xB6, 0x00, 0x14, 0x0F, 0x16, 0x13, 0x05, 0x05};
 
-static char p_gamma_r_setting[10] = {0xD0, 0x40, 0x44, 0x76, 0x01, 0x00, 0x00, 0x30, 0x20, 0x01};
-static char n_gamma_r_setting[10] = {0xD1, 0x40, 0x44, 0x76, 0x01, 0x00, 0x00, 0x30, 0x20, 0x01};
-static char p_gamma_g_setting[10] = {0xD2, 0x40, 0x44, 0x76, 0x01, 0x00, 0x00, 0x30, 0x20, 0x01};
-static char n_gamma_g_setting[10] = {0xD3, 0x40, 0x44, 0x76, 0x01, 0x00, 0x00, 0x30, 0x20, 0x01};
-static char p_gamma_b_setting[10] = {0xD4, 0x20, 0x23, 0x74, 0x00, 0x1F, 0x10, 0x50, 0x33, 0x03};
-static char n_gamma_b_setting[10] = {0xD5, 0x20, 0x23, 0x74, 0x00, 0x1F, 0x10, 0x50, 0x33, 0x03};
+//Optimus G calibration
+static char p_gamma_r_setting[10] = {0xD0, 0x72, 0x15, 0x76, 0x00, 0x00, 0x00, 0x50, 0x30, 0x02};
+static char n_gamma_r_setting[10] = {0xD1, 0x72, 0x15, 0x76, 0x00, 0x00, 0x00, 0x50, 0x30, 0x02};
+static char p_gamma_g_setting[10] = {0xD2, 0x72, 0x15, 0x76, 0x00, 0x00, 0x00, 0x50, 0x30, 0x02};
+static char n_gamma_g_setting[10] = {0xD3, 0x72, 0x15, 0x76, 0x00, 0x00, 0x00, 0x50, 0x30, 0x02};
+static char p_gamma_b_setting[10] = {0xD4, 0x72, 0x15, 0x76, 0x00, 0x00, 0x00, 0x50, 0x30, 0x02};
+static char n_gamma_b_setting[10] = {0xD5, 0x72, 0x15, 0x76, 0x00, 0x00, 0x00, 0x50, 0x30, 0x02};
 
-static char ief_on_set0[2] = {0xE0, 0x00};
-static char ief_on_set4[4] = {0xE4, 0x00, 0x00, 0x00};
-static char ief_on_set5[4] = {0xE5, 0x00, 0x00, 0x00};
-static char ief_on_set6[4] = {0xE6, 0x00, 0x00, 0x00};
+static char ief_on_set0[2] = {0xE0, 0x07};
+static char ief_on_set4[4] = {0xE4, 0x02, 0x82, 0x82};
+static char ief_on_set5[4] = {0xE5, 0x01, 0x82, 0x80};
+static char ief_on_set6[4] = {0xE6, 0x04, 0x00, 0x00};
 
 static char ief_set1[5] = {0xE1, 0x00, 0x00, 0x01, 0x01};
-static char ief_set2[3] = {0xE2, 0x01, 0x00};
-static char ief_set3[6] = {0xE3, 0x00, 0x00, 0x42, 0x35, 0x00};
+static char ief_set2[3] = {0xE2, 0x01, 0x0F};
+static char ief_set3[6] = {0xE3, 0x00, 0x00, 0x31, 0x35, 0x00};
 static char ief_set7[9] = {0xE7, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40};
 static char ief_set8[9] = {0xE8, 0x3D, 0x3D, 0x3D, 0x3D, 0x3D, 0x3D, 0x3D, 0x3D};
 static char ief_set9[9] = {0xE9, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B, 0x3B};
@@ -780,7 +1127,7 @@ static char ief_setC[9] = {0xEC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 
 static char osc_setting[4] =     {0xC0, 0x00, 0x0A, 0x10};
 static char power_setting3[13] = {0xC3, 0x00, 0x88, 0x03, 0x20, 0x01, 0x57, 0x4F, 0x33,0x02,0x38,0x38,0x00};
-static char power_setting4[6] =  {0xC4, 0x31, 0x24, 0x11, 0x11, 0x3D};
+static char power_setting4[6] =  {0xC4, 0x22, 0x24, 0x11, 0x11, 0x3D};
 static char power_setting5[4] =  {0xC5, 0x3B, 0x3B, 0x03};
 
 #ifdef CONFIG_LGIT_VIDEO_WXGA_CABC
@@ -909,11 +1256,15 @@ static struct platform_device mipi_dsi_lgit_panel_device = {
 		.platform_data = &mipi_lgit_pdata,
 	}
 };
-#endif
+#endif  // CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WXGA_PT
+
 
 static struct platform_device *mako_panel_devices[] __initdata = {
 #if defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WXGA_PT)
 	&mipi_dsi_lgit_panel_device,
+#endif
+#if defined(CONFIG_FB_MSM_MIPI_HITACHI_VIDEO_HD_PT)
+    &mipi_dsi_hitachi_panel_device,
 #endif
 #ifdef CONFIG_LCD_KCAL
 	&kcal_platrom_device,
@@ -954,7 +1305,7 @@ static struct backlight_platform_data lm3530_data = {
 #else
 	.max_current = 0x17,
 #endif
-	.min_brightness = 0x02,
+	.min_brightness = 0x01,
 	.max_brightness = 0x72,
 	.default_brightness = 0x11,
 	.blmap = NULL,
@@ -962,9 +1313,28 @@ static struct backlight_platform_data lm3530_data = {
 };
 #endif
 
+#if defined(CONFIG_BACKLIGHT_LM3533)
+static struct backlight_platform_data lm3533_data = {
+        .gpio = PM8921_GPIO_PM_TO_SYS(24),
+#if defined(CONFIG_LGIT_VIDEO_WXGA_CABC)
+        .max_current = 0x17 | PWM_SIMPLE_EN,
+#else
+        .max_current = 0x17,
+#endif
+        .min_brightness = 0x05,
+        .max_brightness = 0xFF,
+        .default_brightness = 0x9C,
+        //.factory_brightness = 0x45,
+};
+#endif
+
+
 static struct i2c_board_info msm_i2c_backlight_info[] = {
 	{
-#if defined(CONFIG_BACKLIGHT_LM3530)
+#if defined(CONFIG_BACKLIGHT_LM3533)
+                I2C_BOARD_INFO("lm3533", 0x36),
+                .platform_data = &lm3533_data,
+#elif defined(CONFIG_BACKLIGHT_LM3530)
 		I2C_BOARD_INFO("lm3530", 0x38),
 		.platform_data = &lm3530_data,
 #endif

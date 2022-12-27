@@ -8,3 +8,11 @@ config MACH_APQ8064_MAKO
 	bool "MSM8064 MAKO"
 	help
 	  Support for the LGE MAKO device.
+
+config MACH_APQ8064_J1D
+    depends on ARCH_APQ8064
+    select MACH_LGE
+    bool "APQ8064 J1D"
+    help
+      Support for the LGE Fusion3 J1D(Docomo) device.
+

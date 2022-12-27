@@ -99,7 +99,7 @@
 #define MSM_CONTIG_MEM_SIZE  0x65000
 #ifdef CONFIG_MSM_IOMMU
 
-#define MSM_ION_MM_SIZE		0x5C00000
+#define MSM_ION_MM_SIZE		0x5F00000
 #define MSM_ION_SF_SIZE		0
 #define MSM_ION_QSECOM_SIZE	0x780000 /* (7.5MB) */
 #define MSM_ION_HEAP_NUM	7
@@ -1723,6 +1723,28 @@ static struct platform_device *common_not_mpq_devices[] __initdata = {
 	&apq8064_device_qup_i2c_gsbi4,
 };
 
+#if defined(CONFIG_MACH_APQ8064_J1D)
+static struct gpio_led pm_gpio_leds[] = {
+  	[0] = {
+    		.gpio= PM8921_GPIO_PM_TO_SYS(15),
+      		.name= "blue",
+  	},
+};
+
+static struct gpio_led_platform_data pm_gpio_leds_pdata = {
+  	.leds= pm_gpio_leds,
+    	.num_leds= ARRAY_SIZE(pm_gpio_leds),
+};
+
+static struct platform_device pm_gpio_leds_device = {
+  	.name = "leds-gpio",
+    	.id = -1,
+      	.dev = {
+		.platform_data  =&pm_gpio_leds_pdata,
+      },
+};
+#endif
+
 static struct platform_device *common_devices[] __initdata = {
 	&apq8064_device_acpuclk,
 	&apq8064_device_dmov,
@@ -1844,6 +1866,9 @@ static struct platform_device *common_devices[] __initdata = {
 	&apq8064_iommu_domain_device,
 	&msm_tsens_device,
 	&apq8064_cache_dump_device,
+#if defined(CONFIG_MACH_APQ8064_J1D)
+	&pm_gpio_leds_device,
+#endif
 	&adsp_loader_device,
 };
 
@@ -2033,6 +2058,35 @@ static void __init apq8064_allocate_memory_regions(void)
 	apq8064_allocate_fb_region();
 }
 
+int cpufreq_stats_platform_cpu_power_read_tables(int cpunum, u32 *out_values, size_t num)
+{
+	static const u32 powerVals[] = {47050, 75780, 84500, 93990, 109460, 122350, 135350, 187070, 206620, 224540, 237520, 247180};
+	static const u32 cpuWeights[4] = {16384, 6717, 7700, 8847};
+	int i, numVals = sizeof(powerVals) / sizeof(*powerVals), numCpus = sizeof(cpuWeights) / sizeof(*cpuWeights);
+
+	/*
+	 * Our data source (power_profile.xml) only gives us values for 1st core,
+	 * and not per core as requested, so we weigh these. With weights: 100%,
+	 * 41%, 47%, 54%. This is the same thing as what hammerhead does, for
+	 * better or worse.
+	 */
+
+	if (num > numVals) {
+		pr_err("cpufreq_stats_platform_cpu_power_read_tables asked for too many values (wanted %u have %u)\n", (int)num, numVals);
+		return -1;
+	}
+
+	if (cpunum > numCpus) {
+		pr_err("cpufreq_stats_platform_cpu_power_read_tables asked for too many CPUs (wanted %u have %u)\n", cpunum, numCpus);
+		return -2;
+	}
+
+	for (i = 0; i < num; i++)
+		*out_values++ = powerVals[i] * cpuWeights[cpunum] >> 14;
+
+	return 0;
+}
+
 #ifdef CONFIG_EARJACK_DEBUGGER
 static int earjack_debugger_init(void)
 {
@@ -2078,7 +2132,12 @@ static void __init apq8064_mako_init(void)
 	lge_add_panic_handler_devices();
 	lge_add_backlight_devices();
 	lge_add_sound_devices();
+#ifdef CONFIG_BCM2079X
 	lge_add_bcm2079x_device();
+#endif
+#ifdef CONFIG_LGE_NFC
+	lge_add_nfc_devices();
+#endif
 #ifdef CONFIG_LGE_QFPROM_INTERFACE
 	lge_add_qfprom_devices();
 #endif
@@ -2108,7 +2167,7 @@ static void __init apq8064_mako_init(void)
 	apq8064_init_misc();
 }
 
-MACHINE_START(APQ8064_MAKO, "QCT APQ8064 MAKO")
+MACHINE_START(APQ8064_MAKO, "QCT APQ8064 GEE")
 	.map_io = apq8064_map_io,
 	.reserve = apq8064_reserve,
 	.init_irq = apq8064_init_irq,

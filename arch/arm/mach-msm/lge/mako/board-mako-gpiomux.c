@@ -422,6 +422,8 @@ static struct msm_gpiomux_config wcnss_5wire_interface[] = {
 	},
 };
 
+#ifdef CONFIG_BCM2079X
+
 static struct gpiomux_setting nfc_bcm2079x_ven_cfg = { // NFC_WAKE
 	.func = GPIOMUX_FUNC_GPIO,
 	.drv = GPIOMUX_DRV_2MA,
@@ -464,6 +466,8 @@ static struct msm_gpiomux_config apq8064_bcm2079x_nfc_configs[] __initdata = {
 	},
 };
 
+#endif
+
 void __init apq8064_init_gpiomux(void)
 {
 	int rc;
@@ -498,8 +502,10 @@ void __init apq8064_init_gpiomux(void)
 			ARRAY_SIZE(apq8064_hsic_configs));
 #endif
 
+#ifdef CONFIG_BCM2079X
 	msm_gpiomux_install(apq8064_bcm2079x_nfc_configs,
 			ARRAY_SIZE(apq8064_bcm2079x_nfc_configs));
+#endif
 
 	msm_gpiomux_install(apq8064_hdmi_configs,
 			ARRAY_SIZE(apq8064_hdmi_configs));

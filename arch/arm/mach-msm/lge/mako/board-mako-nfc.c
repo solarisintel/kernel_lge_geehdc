@@ -27,6 +27,8 @@
 #define NFC_GPIO_IRQ            29
 #define NFC_GPIO_FIRM           37
 
+#ifdef CONFIG_BCM2079X
+
 static struct bcm2079x_platform_data bcm2079x_pdata = {
 	.irq_gpio = NFC_GPIO_IRQ,
 	.en_gpio = NFC_GPIO_VEN,
@@ -53,3 +55,6 @@ void __init lge_add_bcm2079x_device(void)
 {
 	lge_add_i2c_bcm2079x_device();
 }
+
+#endif
+

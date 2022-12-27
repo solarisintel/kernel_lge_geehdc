@@ -423,6 +423,6 @@ void __init apq8064_init_misc(void)
 	platform_add_devices(misc_devices, ARRAY_SIZE(misc_devices));
 
 #ifdef CONFIG_SLIMPORT_ANX7808
-	lge_add_i2c_anx7808_device();
+//	lge_add_i2c_anx7808_device();
 #endif
 }
